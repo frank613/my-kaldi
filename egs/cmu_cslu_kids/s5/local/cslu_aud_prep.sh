@@ -16,6 +16,7 @@ Assignment()
 }
 audio=
 test_percentage=30  # Percent of data reserved as test set 
+#test_percentage=5  # Percent of data reserved as test set 
 debug=debug/cslu_dataprep_debug
 data=data/data_cslu
 . ./utils/parse_options.sh

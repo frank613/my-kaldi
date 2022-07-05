@@ -4,13 +4,13 @@
 # Set this to somewhere where you want to put your data, or where
 # someone else has already put it.  You'll want to change this
 # if you're not on the CLSP grid.
-data=/export/a15/vpanayotov/data
+data=/localhome/stipendiater/xinweic/data/libri
 
 # base url for downloads.
 data_url=www.openslr.org/resources/12
 lm_url=www.openslr.org/resources/11
 mfccdir=mfcc
-stage=1
+stage=11
 
 . ./cmd.sh
 . ./path.sh
@@ -67,22 +67,22 @@ if [ $stage -le 3 ]; then
   local/format_lms.sh --src-dir data/lang_nosp data/local/lm
 fi
 
-if [ $stage -le 4 ]; then
+#if [ $stage -le 4 ]; then
   # Create ConstArpaLm format language model for full 3-gram and 4-gram LMs
-  utils/build_const_arpa_lm.sh data/local/lm/lm_tglarge.arpa.gz \
-    data/lang_nosp data/lang_nosp_test_tglarge
-  utils/build_const_arpa_lm.sh data/local/lm/lm_fglarge.arpa.gz \
-    data/lang_nosp data/lang_nosp_test_fglarge
-fi
+  #utils/build_const_arpa_lm.sh data/local/lm/lm_tglarge.arpa.gz \
+  #  data/lang_nosp data/lang_nosp_test_tglarge
+  #utils/build_const_arpa_lm.sh data/local/lm/lm_fglarge.arpa.gz \
+  #  data/lang_nosp data/lang_nosp_test_fglarge
+#fi
 
-if [ $stage -le 5 ]; then
+#if [ $stage -le 5 ]; then
   # spread the mfccs over various machines, as this data-set is quite large.
-  if [[  $(hostname -f) ==  *.clsp.jhu.edu ]]; then
-    mfcc=$(basename mfccdir) # in case was absolute pathname (unlikely), get basename.
-    utils/create_split_dir.pl /export/b{02,11,12,13}/$USER/kaldi-data/egs/librispeech/s5/$mfcc/storage \
-     $mfccdir/storage
-  fi
-fi
+  #if [[  $(hostname -f) ==  *.clsp.jhu.edu ]]; then
+  #  mfcc=$(basename mfccdir) # in case was absolute pathname (unlikely), get basename.
+  #  utils/create_split_dir.pl /export/b{02,11,12,13}/$USER/kaldi-data/egs/librispeech/s5/$mfcc/storage \
+  #   $mfccdir/storage
+  #fi
+#fi
 
 
 if [ $stage -le 6 ]; then
@@ -133,7 +133,6 @@ if [ $stage -le 11 ]; then
   # Align a 10k utts subset using the tri2b model
   steps/align_si.sh  --nj 10 --cmd "$train_cmd" --use-graphs true \
                      data/train_10k data/lang_nosp exp/tri2b exp/tri2b_ali_10k
-
   # Train tri3b, which is LDA+MLLT+SAT on 10k utts
   steps/train_sat.sh --cmd "$train_cmd" 2500 15000 \
                      data/train_10k data/lang_nosp exp/tri2b_ali_10k exp/tri3b
@@ -151,6 +150,9 @@ if [ $stage -le 12 ]; then
                       data/train_clean_100 data/lang_nosp \
                       exp/tri3b_ali_clean_100 exp/tri4b
 fi
+
+echo "done"
+exit 0
 
 if [ $stage -le 13 ]; then
   # Now we compute the pronunciation and silence probabilities from training data,
@@ -172,16 +174,16 @@ if [ $stage -le 13 ]; then
     data/local/lm/lm_fglarge.arpa.gz data/lang data/lang_test_fglarge
 fi
 
-if [ $stage -le 14 ] && false; then
-  # This stage is for nnet2 training on 100 hours; we're commenting it out
-  # as it's deprecated.
-  # align train_clean_100 using the tri4b model
-  steps/align_fmllr.sh --nj 30 --cmd "$train_cmd" \
-    data/train_clean_100 data/lang exp/tri4b exp/tri4b_ali_clean_100
+#if [ $stage -le 14 ] && false; then
+#  # This stage is for nnet2 training on 100 hours; we're commenting it out
+#  # as it's deprecated.
+#  # align train_clean_100 using the tri4b model
+#  steps/align_fmllr.sh --nj 30 --cmd "$train_cmd" \
+#    data/train_clean_100 data/lang exp/tri4b exp/tri4b_ali_clean_100
 
-  # This nnet2 training script is deprecated.
-  local/nnet2/run_5a_clean_100.sh
-fi
+#  # This nnet2 training script is deprecated.
+#  local/nnet2/run_5a_clean_100.sh
+#fi
 
 if [ $stage -le 15 ]; then
   local/download_and_untar.sh $data $data_url train-clean-360

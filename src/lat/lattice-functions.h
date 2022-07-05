@@ -254,6 +254,9 @@ bool CompactLatticeToWordAlignment(const CompactLattice &clat,
                                    std::vector<int32> *begin_times,
                                    std::vector<int32> *lengths);
 
+/// shortest path for non-compact lattice
+void LatticeShortestPath(const Lattice &clat,
+                                Lattice *shortest_path);
 /// A form of the shortest-path/best-path algorithm that's specially coded for
 /// CompactLattice.  Requires that clat be acyclic.
 void CompactLatticeShortestPath(const CompactLattice &clat,

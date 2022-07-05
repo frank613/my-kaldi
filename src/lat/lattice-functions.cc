@@ -1026,6 +1026,12 @@ bool CompactLatticeToWordAlignment(const CompactLattice &clat,
   }
 }
 
+void LatticeShortestPath(const Lattice &lat,
+                                Lattice *shortest_path) {
+  using namespace fst;
+  fst::ShortestPath(lat, shortest_path);
+  return;
+}
 
 void CompactLatticeShortestPath(const CompactLattice &clat,
                                 CompactLattice *shortest_path) {

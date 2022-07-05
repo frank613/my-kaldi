@@ -9,6 +9,7 @@
 set -eu
 corpus=cmu_kids/kids
 data=data/data_cmu
+#test_percentage=5
 test_percentage=30
 
 . ./path.sh
