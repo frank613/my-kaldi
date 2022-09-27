@@ -12,8 +12,9 @@ lm_src=                 # path of existing librispeech lm
 extra_features=false    # Extra features for GMM model (MMI, boosting and MPE)
 vtln=false              # Optional, run VLTN on gmm and tdnnf models if set true 
 email=                  # Reporting email for tdnn-f training
-sd_model_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/exp/tri4b
-si_model_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/exp/tri2b
+#sd_model_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/exp/tri4b
+#si_model_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/exp/mono_ali_5k
+si_model_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/exp/mono_all_data
 lang_path=/localhome/stipendiater/xinweic/kaldi/egs/librispeech/s5/data/lang_nosp
 . ./cmd.sh
 . ./path.sh
@@ -75,23 +76,24 @@ echo "data prepared"
 
 # Align with sat model 
 if [ $stage -le 4 ]; then
-  steps/align_sat_gop.sh --nj 2 --cmd "$train_cmd" data/data_cmu_gop/test $lang_path $sd_model_path exp/gop_ali_sat
+  steps/align_si_gop.sh --nj 2 --cmd "$train_cmd" data/data_cmu_gop/test $lang_path $si_model_path exp/gop_ali_mono_big
 fi
 
 # Numerator score
-if [ $stage -le 5 ]; then
-  steps/align_si_gop.sh --nj 2 --cmd "$train_cmd" data/data_cmu_gop/test $lang_path $si_model_path exp/gop_ali_si
-fi
+#if [ $stage -le 5 ]; then
+#  steps/align_si_gop.sh --nj 2 --cmd "$train_cmd" data/data_cmu_gop/test $lang_path $si_model_path exp/gop_ali_si
+#fi
 
 # Denominator
 if [ $stage -le 6 ]; then
   #make phoneme-level graph HCP - no L.fst is needed
-  steps/make_gop_graph.sh $lang_path exp/gop_ali_si exp/gop_ali_si exp/gop_denominator_first 
+  steps/make_gop_mono_graph.sh $lang_path exp/gop_ali_mono_big exp/gop_ali_mono_big exp/gop_denom_all_mono/ 
 fi
 
 if [ $stage -le 7 ]; then
   # Phone-level decode and get the best path with its scores per frame
-  steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_si exp/gop_ali_sat exp/gop_denominator_first/phone_graph data/data_cmu_gop/test exp/gop_denominator_first/decode
+  #steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_si exp/gop_ali_sat exp/gop_denominator/phone_graph data/data_cmu_gop/test exp/gop_denominator/decode
+  steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_mono_big exp/gop_ali_mono_big exp/gop_denom_all_mono/phone_graph data/data_cmu_gop/test exp/gop_denom_all_mono/decode
 fi 
 
 

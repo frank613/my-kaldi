@@ -86,12 +86,13 @@ fi
 # Denominator
 if [ $stage -le 6 ]; then
   #make phoneme-level graph HCP - no L.fst is needed
-  steps/make_gop_graph.sh $lang_path exp/gop_ali_si exp/gop_ali_si exp/gop_denominator_first 
+  steps/make_gop_graph.sh $lang_path exp/gop_ali_si exp/gop_ali_si exp/gop_denominator_sameMD_forALI/ 
 fi
 
 if [ $stage -le 7 ]; then
   # Phone-level decode and get the best path with its scores per frame
-  steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_si exp/gop_ali_sat exp/gop_denominator_first/phone_graph data/data_cmu_gop/test exp/gop_denominator_first/decode
+  #steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_si exp/gop_ali_sat exp/gop_denominator/phone_graph data/data_cmu_gop/test exp/gop_denominator/decode
+  steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/gop_ali_si exp/gop_ali_si exp/gop_denominator_sameMD_forALI/phone_graph data/data_cmu_gop/test exp/gop_denominator_sameMD_forALI/decode
 fi 
 
 
