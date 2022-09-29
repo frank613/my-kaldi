@@ -29,7 +29,8 @@ echo "$0 $@"  # Print the command line for logging
 [ -f ./path.sh ] && . ./path.sh; # source the path.
 . parse_options.sh || exit 1;
 
-if [ $# != 4 ]; then
+
+if [ $# != 5 ]; then
    echo "Usage: steps/decode_gop.sh [options] <ali-dir> <graph-dir> <data-dir> <decode-dir>"
    echo "... where <decode-dir> is assumed to be a sub-directory of the directory"
    echo " where the model is."
@@ -134,16 +135,20 @@ if [ $stage -le 0 ]; then
 
   #GOP denominator only cares acoustic evidence
   $cmd JOB=1:$nj $dir/log/1best.JOB.log \
-   lattice-1best-normal --acoustic-scale=100 --lm-scale=0.01  "ark:gunzip -c $dir/lat.JOB.gz|" ark:- | lattice-topsort "ark:-" "ark,t:$dir/best.ali.JOB.txt"
+  lattice-1best-normal --acoustic-scale=100 --lm-scale=0.01  "ark:gunzip -c $dir/lat.JOB.gz|" "ark:$dir/JOB.best.ark"  || exit 1;
+  $cmd JOB=1:$nj $dir/log/1best.JOB.log \
+  lattice-topsort "ark:$dir/JOB.best.ark" "ark,t:$dir/best.ali.JOB.txt" || exit 1
    #lattice-1best --acoustic-scale=100 --lm-scale=0.01  "ark:gunzip -c $dir/lat.*.gz|" "ark:$dir/best.ali"
    #lattice-1best --acoustic-scale=100 --lm-scale=0.01  "ark:gunzip -c $dir/lat.*.gz|" "ark:-" | lattice-scale --write-compact=false "ark:-" "ark:-" | lattice-topsort "ark:-" "ark,t:$dir/best.ali.txt"
 fi
 
 if [ $stage -le 1 ]; then
-   [ $nj != "`cat $akidir/num_jobs`" ] && echo "$0: mismatch in num-jobs for computing numerator and denominator scores" && exit 1;
+   [ $nj != "`cat $alidir/num_jobs`" ] && echo "$0: mismatch in num-jobs for computing numerator and denominator scores" && exit 1;
    $cmd JOB=1:$nj $dir/log/gop.JOB.log \
    gop-base "ark,t:$alidir/AM-SCORE.JOB.txt" "ark,t:$timedir/ali.phone.JOB.txt" "ark,t:$dir/best.ali.JOB.txt"  "ark,t:$dir/gop.JOB.score.txt"
 
+   cat $dir/gop.* > $dir/gop.score.all
+   cat $dir/gop.score.all  | utils/int2sym.pl -f 2 $dir/../phones.txt > $dir/gop.score.all.symbol
 fi
 #if [ $stage -le 1 ]; then
 #  [ ! -z $iter ] && iter_opt="--iter $iter"

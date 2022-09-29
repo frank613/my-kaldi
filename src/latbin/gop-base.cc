@@ -27,12 +27,90 @@ class GOPresHolder {
         os << '\n';
         return os.good();
       }
-   }
+    }
+    
+    bool Read(std::istream &is) {
+          Clear(); // in case anything currently stored.
+          int c = is.peek();
+          if (c == -1) {
+            KALDI_WARN << "End of stream detected";
+            return false;
+          } else if (isspace(c)) { // The text form of the lattice begins
+            // with space (normally, '\n'), so this means it's text (the binary form
+            // cannot begin with space because it starts with the FST Type() which is not
+            // space).
+            return ReadGop(is, false, &t_);
+          } else if (c != 214) { // 214 is first char of FST magic number,
+            // on little-endian machines which is all we support (\326 octal)
+            KALDI_WARN << "Reading compact lattice: does not appear to be an FST "
+                      << " [non-space but no magic number detected], file pos is "
+                      << is.tellg();
+            return false;
+          } else {
+            return ReadGop(is, true, &t_);
+          }
+     }
+
+    bool ReadGop(std::istream &is, bool binary, GOPres **gopRes) {
+      KALDI_ASSERT(*gopRes == NULL);
+      if (binary) {
+        KALDI_ERR << "GOP reader doesn't support binaray read currently, use text in command line";
+      }
+      else{
+        // The next line would normally consume the \r on Windows, plus any
+        // extra spaces that might have got in there somehow.
+        while (std::isspace(is.peek()) && is.peek() != '\n') is.get(); 
+        if (is.peek() == '\n') is.get(); // consume the newline.
+        else { // saw spaces but no newline.. this is not expected.
+          KALDI_WARN << "Reading GOP text: unexpected sequence of spaces "
+                 << " at file position " << is.tellg();
+          return false;
+        } 
+
+        *gopRes = new GOPres;  // don't forget to free after using it
+        size_t nline = 0;
+        std::string line;
+        std::vector<string> col;
+        string separator = FLAGS_fst_field_separator + "\r\n";
+        kaldi::SplitStringToVector(line, separator.c_str(), true, &col);
+        while (std::getline(is, line)) {
+          nline++;
+          if (col.size() == 0) break; // Empty line is a signal to stop, in our
+          // archive format.
+          if (col.size() != 2) {
+            KALDI_WARN << "Reading GOP: bad line in GOP: " << line;
+            delete *gopRes;
+            *gopRes = NULL;
+            break;
+          }
+          int32_t phoneme;
+          if (!kaldi::ConvertStringToInteger(col[0], &phoneme)){
+              KALDI_WARN << "Reading GOP: bad line in GOP: " << line;
+              delete *gopRes;
+              *gopRes = NULL;
+              break;
+          }
+          double_t gScore;
+          if (!kaldi::ConvertStringToReal(col[1], &gScore)){
+              KALDI_WARN << "Reading GOP: bad line in GOP: " << line;
+              delete *gopRes;
+              *gopRes = NULL;
+              break;
+          }
+          *gopRes->append(std::make_pair(phoneme, gScore));
+        }
+      }
+      return (*gopRes != NULL);
+    }
+
+    void Clear() {  delete t_; t_ = NULL; }
+    
   private:
     T *t_;
 };
 
 typedef kaldi::TableWriter<GOPresHolder> GOPWriter;
+typedef kaldi::SequentialTableReader<GOPresHolder> GOPReader;
 
 int main(int argc, char *argv[]) {
 
@@ -44,8 +122,8 @@ int main(int argc, char *argv[]) {
         using fst::StdArc;
 
     const char *usage =
-        "calculating the GOP based on the given aliment and topsorted 1-best (non-compact)lattice, the lattice should be non-compact\n"
-        "Usgae: compute-gop ali-repeicier lattice-rspecifier model-rspecifier gop-wspecifier";
+        "calculating the GOP based on the given alignment and topsorted 1-best (non-compact)lattice, the lattice should be non-compact\n"
+        "Usgae: compute-gop ali-rspecifier time-align-rspecifier lattice-rspecifier gop-wspecifier";
 
     ParseOptions po(usage);
     //BaseFloat lm2acoustic_scale = 0.0;

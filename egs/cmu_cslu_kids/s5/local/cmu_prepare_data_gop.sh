@@ -9,7 +9,7 @@
 set -eu
 corpus=cmu_kids/kids
 data=data/data_cmu
-test_percentage=1
+test_percentage=30
 #test_percentage=30
 
 . ./path.sh
@@ -19,7 +19,7 @@ total_cnt=0
 test_cnt=0
 train_cnt=0
 
-rm -f $data/test
+rm -rf $data/test
 mkdir -p $data/test
 
 echo "Preparing cmu_kids..."

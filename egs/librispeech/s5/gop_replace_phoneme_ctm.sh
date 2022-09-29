@@ -19,7 +19,7 @@ if [ $# -ne 2 ] | [ ! -f $dict_modified ]; then
 fi
 
 fname=$(echo $dict_modified | xargs basename | cut -d'.' -f1)
-fname=AA_S
+#fname=AA_S
 dictDir=data/local/$fname
 langDir=data/lang_replace/$fname
 aliDir=exp/mono_ali/${fname}_ctm

@@ -10,7 +10,7 @@ data=/localhome/stipendiater/xinweic/data/libri
 data_url=www.openslr.org/resources/12
 lm_url=www.openslr.org/resources/11
 mfccdir=mfcc
-stage=11
+stage=13
 
 . ./cmd.sh
 . ./path.sh
@@ -151,6 +151,11 @@ if [ $stage -le 12 ]; then
                       exp/tri3b_ali_clean_100 exp/tri4b
 fi
 
+if [ $stage -le 13 ]; then
+  steps/train_mono.sh  --boost-silence 1.25 --nj 20 --cmd "$train_cmd"  \
+                      data/train_clean_100 data/lang_nosp  exp/mono_all_data
+
+fi
 echo "done"
 exit 0
 

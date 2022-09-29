@@ -101,6 +101,11 @@ else
       "$feats" "ark,t:|gzip -c >$dir/ali.JOB.gz"  || exit 1;
 fi
 
+#align-to-phone
+  $cmd JOB=1:$nj $dir/log/align_to_phone.JOB.log \
+  ali-to-phones --per-frame "$mdl" "ark:gunzip -c $dir/ali.JOB.gz|" "ark,t:$dir/ali.phone.JOB.txt"
+  cat $dir/ali.phone.*.txt | utils/int2sym.pl -f 2- $lang/phones.txt >> "$dir/ali.phone.all.txt" || exit 1;
+
 steps/diagnostic/analyze_alignments.sh --cmd "$cmd" $lang $dir
 
 echo "$0: done aligning data."
