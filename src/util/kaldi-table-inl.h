@@ -1690,6 +1690,20 @@ class RandomAccessTableReaderScriptImpl:
     }
   }
 
+  //newly added for GOP
+  virtual std::string Range(const std::string &key){
+    if (!HasKeyInternal(key, true)) // true == preload.
+      KALDI_ERR << "Could not get item for key " << key
+                << ", rspecifier is " << rspecifier_ << " [to ignore this, "
+                 << "add the p, (permissive) option to the rspecifier.";
+    KALDI_ASSERT(key_ == key);
+    if (state_ == kHaveRange) {
+      return range_;
+    } else {
+      return "";
+    }
+  } 
+
   virtual ~RandomAccessTableReaderScriptImpl() { }
 
  private:

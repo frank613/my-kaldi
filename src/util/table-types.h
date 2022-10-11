@@ -62,7 +62,7 @@ typedef SequentialTableReader<KaldiObjectHolder<Vector<BaseFloat> > >
 typedef RandomAccessTableReader<KaldiObjectHolder<Vector<BaseFloat> > >
                                 RandomAccessBaseFloatVectorReader;
 typedef RandomAccessTableReaderMapped<KaldiObjectHolder<Vector<BaseFloat> > >
-                                      RandomAccessBaseFloatVectorReaderMapped;
+                                      RandomAccessBaseFloatVectorReaderMapped;                                     
 
 typedef TableWriter<KaldiObjectHolder<VectorBase<double> > >
                                       DoubleVectorWriter;

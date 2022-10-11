@@ -264,6 +264,8 @@ class RandomAccessTableReader {
   // want to catch this error.
   const T &Value(const std::string &key);
 
+
+
   ~RandomAccessTableReader();
 
   // Allow copy-constructor only for non-opened readers (needed for inclusion in
@@ -271,12 +273,14 @@ class RandomAccessTableReader {
   RandomAccessTableReader(const RandomAccessTableReader<Holder>
                           &other):
       impl_(NULL) { KALDI_ASSERT(other.impl_ == NULL); }
+
+  RandomAccessTableReaderImplBase<Holder> *impl_; // move to public for easy access
+
  private:
   // Disallow assignment.
   RandomAccessTableReader &operator=(const RandomAccessTableReader<Holder>&);
   void CheckImpl() const;  // Checks that impl_ is non-NULL; prints an error
-                           // message and dies (with KALDI_ERR) if NULL.
-  RandomAccessTableReaderImplBase<Holder> *impl_;
+                           // message and dies (with KALDI_ERR) if NULL.  
 };
 
 
