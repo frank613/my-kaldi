@@ -33,7 +33,6 @@ int main(int argc, char *argv[]) {
     SequentialBaseFloatVectorReader aliscore_reader(aliscore_rspecifier);
     //RandomAccessBaseFloatVectorReader aliscore_reader(aliscore_rspecifier);
     //RandomAccessBaseFloatVectorReader pscore_reader(pscore_rspecifier);  
-    SequentialBaseFloatVectorReader pscore_reader(pscore_rspecifier);  
     RandomAccessBaseFloatMatrixReader slice_reader(feat_rspecifier);
     BaseFloatVectorWriter score_writer(ali_wspecifier);
 
@@ -76,6 +75,7 @@ int main(int argc, char *argv[]) {
     for (; !aliscore_reader.Done(); aliscore_reader.Next()) {
         std::string uttid = aliscore_reader.Key();
         Fvector oVector_copy = aliscore_reader.Value(); 
+        SequentialBaseFloatVectorReader pscore_reader(pscore_rspecifier);  
         int32 modify_count = 0;
         for (; !pscore_reader.Done(); pscore_reader.Next()){
           std::string uttid_ext = pscore_reader.Key();

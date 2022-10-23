@@ -61,7 +61,7 @@ cp $srcdir/delta_opts $dir 2>/dev/null
 
 [[ -d $sdata && $data/feats.scp -ot $sdata ]] || split_data.sh $data $nj || exit 1;
 
-utils/lang/check_phones_compatible.sh $lang/phones.txt $srcdir/phones.txt || exit 1;
+#utils/lang/check_phones_compatible.sh $lang/phones.txt $srcdir/phones.txt || exit 1;
 cp $lang/phones.txt $dir || exit 1;
 
 cp $srcdir/{tree,final.mdl} $dir || exit 1;
@@ -82,7 +82,8 @@ esac
 
 echo "$0: aligning data in $data using model from $srcdir, putting alignments in $dir"
 
-mdl="gmm-boost-silence --boost=$boost_silence `cat $lang/phones/optional_silence.csl` $dir/final.mdl - |"
+#mdl="gmm-boost-silence --boost=$boost_silence `cat $lang/phones/optional_silence.csl` $dir/final.mdl - |"
+mdl="$dir/final.mdl"
 
 if $use_graphs; then
   [ $nj != "`cat $srcdir/num_jobs`" ] && echo "$0: mismatch in num-jobs" && exit 1;
@@ -96,7 +97,7 @@ else
   # We could just use gmm-align in the next line, but it's less efficient as it compiles the
   # training graphs one by one.
   $cmd JOB=1:$nj $dir/log/align.JOB.log \
-    compile-train-graphs --read-disambig-syms=$lang/phones/disambig.int $dir/tree $dir/final.mdl  $lang/L.fst "$tra" ark:- \| \
+    compile-train-graphs $dir/tree $dir/final.mdl  $lang/L.fst "$tra" ark:- \| \
     gmm-align-compiled $scale_opts --beam=$beam --retry-beam=$retry_beam --careful=$careful --write-per-frame-acoustic-loglikes="ark,t:$dir/AM-SCORE.JOB.txt" "$mdl" ark:- \
       "$feats" "ark,t:|gzip -c >$dir/ali.JOB.gz"  || exit 1;
 fi
@@ -104,32 +105,8 @@ fi
 #align-to-phone
   $cmd JOB=1:$nj $dir/log/align_to_phone.JOB.log \
   ali-to-phones --per-frame "$mdl" "ark:gunzip -c $dir/ali.JOB.gz|" "ark,t:$dir/ali.phone.JOB.txt"
-  cat $dir/ali.phone.*.txt | utils/int2sym.pl -f 2- $lang/phones.txt >> "$dir/ali.phone.all.txt" || exit 1;
+  cat $dir/ali.phone.*.txt | utils/int2sym.pl -f 2- $lang/phones.txt >> "$dir/all.ali.phone.txt" || exit 1;
 
-#align-to-phone-ctm
-  $cmd JOB=1:$nj $dir/log/align_to_phone.JOB.log \
-  ali-to-phones --ctm-output --per-frame "$mdl" "ark:gunzip -c $dir/ali.JOB.gz|" "$dir/ali.phone.JOB.ctm"
-  cat $dir/ali.phone.*.ctm | utils/int2sym.pl -f 5- $lang/phones.txt >> "$dir/all.phonemes.ctm" || exit 1;
-
-#align-to-words
-for f in $lang/words.txt $dir/ali.1.gz $lang/oov.int; do
-  [ ! -f $f ] && echo "$0: expecting file $f to exist" && exit 1;
-done
-oov=`cat $lang/oov.int` || exit 1
-  if [ -f $lang/phones/word_boundary.int ]; then
-    $cmd JOB=1:$nj $dir/log/get_ctm.JOB.log \
-      set -o pipefail '&&' linear-to-nbest "ark:gunzip -c $dir/ali.JOB.gz|" \
-      "ark:utils/sym2int.pl --map-oov $oov -f 2- $lang/words.txt < $sdata/JOB/text |" \
-      '' '' "ark:-" \| \
-      lattice-align-words $lang/phones/word_boundary.int "$mdl" ark:- ark:- \| \
-      nbest-to-ctm  --print-silence=true ark:- $dir/words.ctm.JOB || exit 1
-    cat $dir/words.ctm.* | utils/int2sym.pl -f 5 $lang/words.txt  > "$dir/all.words.ctm" || exit 1;
-  else
-    if [ ! -f $lang/phones/align_lexicon.int ]; then
-	    echo "align-to-ctm failed, missing lang/phones/align_lexicon.in" && exit 1
-    fi
-  fi
-    
-steps/diagnostic/analyze_alignments.sh --cmd "$cmd" $lang $dir
+#steps/diagnostic/analyze_alignments.sh --cmd "$cmd" $lang $dir
 
 echo "$0: done aligning data."
