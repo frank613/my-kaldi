@@ -64,7 +64,8 @@ int main(int argc, char *argv[]) {
 
     SequentialLatticeReader clat_reader(lats_rspecifier);
     
-    // Write as compact lattice.
+    //CompactLatticeWriter compact_1best_writer(lats_wspecifier); 
+    // Write as normal lattice.
     LatticeWriter compact_1best_writer(lats_wspecifier); 
 
     int32 n_done = 0, n_err = 0;

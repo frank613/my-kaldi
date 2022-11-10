@@ -97,7 +97,7 @@ class GOPresHolder {
               *gopRes = NULL;
               break;
           }
-          *gopRes->append(std::make_pair(phoneme, gScore));
+          (*gopRes)->push_back(std::make_pair(phoneme, gScore));
         }
       }
       return (*gopRes != NULL);
@@ -169,6 +169,7 @@ int main(int argc, char *argv[]) {
         KALDI_LOG << "processing" << uttid;
         const Fvector &num_score = ali_reader.Value(uttid); //vector for the numerator score
         Fvector denom_score(num_states); //vector to store the scores in the denominator
+	//KALDI_LOG << "DENOM: "<< denom_score << std::endl;
         for (StateId s = 0; s < num_states; s++) {
             for (fst::MutableArcIterator<Fst> aiter(lat_ptr, s);!aiter.Done();aiter.Next()){
               Arc arc = aiter.Value();
@@ -177,14 +178,16 @@ int main(int argc, char *argv[]) {
                   KALDI_ERR << "Lattice is not top-sorted or linear, interrupted";
               }
               if (arc.ilabel != 0){
+                  denom_score(num_frame) = arc.weight.Value2();
                   num_frame++;
                   if (num_frame > num_score.Dim()){
                     KALDI_ERR << "decoding length greather than the alignment length, interrupted";
                   }
-                  denom_score.Set(arc.weight.Value2());
+                  //denom_score.Set(arc.weight.Value2());
               }
             } 
         }
+	//KALDI_LOG  << "DENOM: "<< denom_score << std::endl;
         if ( num_frame == 0){
             KALDI_WARN << "skipped because no acoustic score generated from this uttid: " << uttid;
             continue;
@@ -195,7 +198,7 @@ int main(int argc, char *argv[]) {
         denom_score.Resize(num_frame, kaldi::kCopyData);
         Fvector gop_per_frame; 
         gop_per_frame = num_score;
-        gop_per_frame.AddVec(1, denom_score); //num_score is negative, but denom is positive, the difference is assumed to be negative  
+        gop_per_frame.AddVec(1, denom_score); //num_score is negative, but denom is positive in the Lattice, the difference is assumed to be negative  
         // gop_writer.Write(uttid, gop_per_frame);
         //KALDI_LOG << uttid << ": has " << num_frame << "frames";
 
@@ -207,18 +210,20 @@ int main(int argc, char *argv[]) {
         }
         //pair <phone : average_score>  std::vector<std::pair<int32, double>>
         GOPres results;
-        for(int n = 0, start_pos = 1, last = vec_time[0], current = vec_time[0]; n < length; n++ ){
+        //for(int n = 0, start_pos = 1, last = vec_time[0], current = vec_time[0]; n < length; n++ ){
+        for(int n = 0, start_pos = 0, last = vec_time[0], current = vec_time[0]; n < length; n++ ){
           current = vec_time[n];
           if (last == current){ //still in the same phone
             ; //do nothing
           }
           else {
-            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n+1-start_pos).Sum()/(n+1-start_pos)));
-            start_pos = n+1; // Kaldi vector index starts from 1
+            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n-start_pos).Sum()/(n-start_pos)));
+            start_pos = n; // Kaldi vector index starts from 0
+            //start_pos = n+1; // Kaldi vector index starts from 1
           }
           last = current;
           if (n == length -1){ //push everything at the last frame
-            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n+1-start_pos).Sum()/(n+1-start_pos)));
+            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n-start_pos).Sum()/(n-start_pos)));
           }
         }
         //write out

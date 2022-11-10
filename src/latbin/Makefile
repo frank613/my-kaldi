@@ -28,7 +28,7 @@ BINFILES = lattice-best-path lattice-prune lattice-equivalent lattice-to-nbest \
            lattice-lmrescore-pruned lattice-lmrescore-kaldi-rnnlm-pruned lattice-reverse \
 		   lattice-expand lattice-path-cover lattice-add-nnlmscore  \
 		   lattice-topsort lattice-1best-normal \
-		   gop-base gop-replace-score-ali like-to-ali
+		   gop-base gop-base-mod gop-replace-score-ali like-to-ali
 
 OBJFILES =
 

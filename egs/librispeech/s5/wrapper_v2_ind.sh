@@ -12,7 +12,7 @@ for vowel in AH;do
 	for vowel2 in ${vowel_set_shorted[@]};do
 		if [ ! $vowel = $vowel2 ]; then
 			echo "processing" "$vowel -> $vowel2"
-			./gop_replace_phoneme_v2.sh ${vowel}_${vowel2} || { echo "exit"; exit 1; } 
+			./gop_replace_phoneme_v2_posind.sh ${vowel}_${vowel2} || { echo "exit"; exit 1; } 
 	        fi	       
 
 	done
