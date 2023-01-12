@@ -46,7 +46,7 @@ if [ "$nspk_test" -ge "$nspk_all" ]; then
   exit 1;
 fi
 
-utils/shuffle_list.pl <$loctmp/speakers_all.txt | head -n $nspk_test | sort -u >$loctmp/speakers_test.txt
+utils/shuffle_list.pl <$loctmp/speakers_all.txt | head -n $nspk_test | sort -u > $loctmp/speakers_test.txt
 
 awk 'NR==FNR{spk[$0]; next} !($0 in spk)' \
   $loctmp/speakers_test.txt $loctmp/speakers_all.txt |\

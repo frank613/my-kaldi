@@ -42,7 +42,7 @@ set -e
 if [ $stage -le 2 ]; then
   #align canonical text with the monophone model 
   if [ ! -d exp/ali_mono_align_ctm ];then
-  	steps/align_si_gop_ctm.sh  --nj 2 --cmd "$train_cmd" \
+  	steps/align_si_gop_ctm.sh  --nj 1 --cmd "$train_cmd" \
                     data/gop_combined data/lang_nosp  exp/mono_all_data exp/ali_mono_align_ctm
   fi
 fi
@@ -57,13 +57,13 @@ fi
 
 if [ $stage -le 4 ]; then
   #Align phonemes
-  steps/align_si_gop_phonesub.sh  --nj 2 --cmd "$train_cmd" \
+  steps/align_si_gop_phonesub.sh  --nj 1 --cmd "$train_cmd" \
                     data/gop_combined_test/extracted_segments/$targetP/$toP/data-segmented  data/gop_combined_test/extracted_segments/$targetP/$toP exp/mono_all_data $aliDir
 fi
 
 if [ $stage -le 5 ]; then
   #replace the original aligments
-  steps/replace_alignment.sh --nj 2 --cmd "$train_cmd" \
+  steps/replace_alignment.sh --nj 1 --cmd "$train_cmd" \
       exp/ali_mono_align_ctm $aliDir data/gop_combined_test/extracted_segments/$targetP/$toP/data-segmented $aliDir
 fi
 
@@ -76,14 +76,14 @@ fi
 
 if [ $stage -le 7 ]; then
   #GOP score for canonical and modified input
-  if [ ! -d exp/gop_denominator/decode ];then
-  	steps/decode_gop.sh --config conf/decode.config --nj 2 --cmd "$decode_cmd" exp/ali_mono_align exp/ali_mono_align exp/gop_denominator/phone_graph data/gop_combined exp/gop_denominator/decode
+  if [ ! -d exp/gop_denominator/decode-mod ];then
+  	steps/decode_gop.sh --config conf/decode.config --nj 1 --cmd "$decode_cmd" exp/ali_mono_align exp/ali_mono_align exp/gop_denominator/phone_graph data/gop_combined exp/gop_denominator/decode-mod
   fi
 
 fi
 
 if [ $stage -le 8 ]; then
-	steps/compute_gop_modified_ali.sh --nj 2 --cmd "$decode_cmd" $aliDir exp/ali_mono_align_ctm exp/gop_denominator/decode $gopDir
+	steps/compute_gop_modified_ali.sh --nj 1 --cmd "$decode_cmd" $aliDir exp/ali_mono_align_ctm exp/gop_denominator/decode-mod $gopDir
 fi
 
 
