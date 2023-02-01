@@ -2,11 +2,13 @@
 #include "util/common-utils.h"
 #include "fstext/fstext-lib.h"
 #include "lat/kaldi-lattice.h"
+#include "hmm/transition-model.h"
+#include "nnet2/am-nnet.h"
+#include "nnet2/nnet-compute.h"
 
 //define a new GOP class for writting according to kaldi IO fasion
 typedef std::vector<std::pair<int32, double>> GOPres;
 class GOPresHolder {
-  
   public:
     typedef GOPres T; //GOPresHolder type T will be referenced by the TableWriter template class 
     GOPresHolder() { t_ = NULL; }
@@ -116,14 +118,11 @@ int main(int argc, char *argv[]) {
 
     try{
         using namespace kaldi;
-        typedef kaldi::int32 int32;
-        using fst::SymbolTable;
-        using fst::VectorFst;
-        using fst::StdArc;
+        using namespace kaldi::nnet2;
 
     const char *usage =
         "calculating the GOP based on the given alignment(raw alignment with transition ids) and neural network posteriors (frame-wise likelihood ratio)\n"
-        "Usgae: gop-likeRatio NNModel-in TransitionModel-in egs-rspecifier ali-rspecifier gop-wspecifier";
+        "Usgae: gop-likeRatio NNModel-in TransitionModel-in feats-rspecifier ali-rspecifier gop-wspecifier";
 
     ParseOptions po(usage);
     //BaseFloat lm2acoustic_scale = 0.0;
@@ -138,7 +137,7 @@ int main(int argc, char *argv[]) {
 
     std::string nnet_rxfilename = po.GetArg(1),
         hmm_model_rxfilename = po.GetArg(2),
-        egs_rspecifier = po.GetArg(3), 
+        feats_rspecifier = po.GetArg(3), 
         ali_rspecifier = po.GetArg(4), //read the tran-id alignment file for grouping the gop scores and getting the canonical pdf-id sequence 
         gop_wspecifier= po.GetArg(5);
 
@@ -152,91 +151,95 @@ int main(int argc, char *argv[]) {
       am_nnet.Read(ki.Stream(), binary_read);
     }
 
-    SequentialNnetExampleReader example_reader(egs_rspecifier);
+    SequentialBaseFloatCuMatrixReader feature_reader(feats_rspecifier);
     RandomAccessInt32VectorReader ali_reader(ali_rspecifier);
     GOPWriter gop_writer(gop_wspecifier);
 
-    typedef fst::ArcTpl<LatticeWeight> Arc;
-    typedef typename Arc::StateId StateId;
-    typedef fst::MutableFst<Arc> Fst;
-    typedef kaldi::Vector<kaldi::BaseFloat> Fvector;
-    //typedef kaldi::Vector<kaldi::int32> Ivector;
 
-    for (; !lattice_reader.Done(); lattice_reader.Next()) {
-        string uttid = lattice_reader.Key();
-        Lattice *lat_ptr = &lattice_reader.Value();
-        StateId num_states = lat_ptr->NumStates();
-        int num_frame {0};
-        if (!ali_reader.HasKey(uttid)){
-          KALDI_WARN << "the utt " << uttid << " can not be found in the alignment, skipped";
-          continue;   
-        }
-        if (!time_reader.HasKey(uttid)){
-          KALDI_WARN << "the utt " << uttid << " can not be found in the timing alignment, skipped";
-          continue;   
-        }
-        KALDI_LOG << "processing" << uttid;
-        const Fvector &num_score = ali_reader.Value(uttid); //vector for the numerator score
-        Fvector denom_score(num_states); //vector to store the scores in the denominator
-	//KALDI_LOG << "DENOM: "<< denom_score << std::endl;
-        for (StateId s = 0; s < num_states; s++) {
-            for (fst::MutableArcIterator<Fst> aiter(lat_ptr, s);!aiter.Done();aiter.Next()){
-              Arc arc = aiter.Value();
-              //KALDI_LOG << "processing arc: " << s <<"the next state is " << arc.nextstate;
-              if (arc.nextstate != s + 1){
-                  KALDI_ERR << "Lattice is not top-sorted or linear, interrupted";
-              }
-              if (arc.ilabel != 0){
-                  denom_score(num_frame) = arc.weight.Value2();
-                  num_frame++;
-                  if (num_frame > num_score.Dim()){
-                    KALDI_ERR << "decoding length greather than the alignment length, interrupted";
-                  }
-                  //denom_score.Set(arc.weight.Value2());
-              }
-            } 
-        }
-	//KALDI_LOG  << "DENOM: "<< denom_score << std::endl;
-        if ( num_frame == 0){
-            KALDI_WARN << "skipped because no acoustic score generated from this uttid: " << uttid;
-            continue;
-        }
-        if ( num_frame != num_score.Dim()){
-            KALDI_ERR << "decoding length is not the same as alignment length, interrupted: " << num_frame << " vs " << num_score.Dim();
-        }
-        denom_score.Resize(num_frame, kaldi::kCopyData);
-        Fvector gop_per_frame; 
-        gop_per_frame = num_score;
-        gop_per_frame.AddVec(1, denom_score); //num_score is negative, but denom is positive in the Lattice, the difference is assumed to be negative  
-        // gop_writer.Write(uttid, gop_per_frame);
-        //KALDI_LOG << uttid << ": has " << num_frame << "frames";
 
-        //grouping scores to phones
-        const std::vector<int32> &vec_time = time_reader.Value(uttid);
-        int length = vec_time.size();
-        if ( num_frame != length){
-            KALDI_ERR << "decoding length is not the same as alignment length while grouping, interrupted: " << num_frame << " vs " << num_score.Dim();
+    for (; !feature_reader.Done(); feature_reader.Next()) {
+      string uttid = feature_reader.Key();
+      if (!ali_reader.HasKey(uttid)){
+        KALDI_WARN << "the utt " << uttid << " can not be found in the alignment, skipped";
+        continue;   
+      }
+      KALDI_LOG << "processing" << uttid;
+
+      //Step 1: get the tran-id sequence and segmentation vector from alignment
+      const std::vector<int32> &vec_time = ali_reader.Value(uttid);
+      int length = vec_time.size();
+      std::vector<int32> vec_pdf(length);
+      std::vector<std::pair<int32, int32>> vec_seg; //pair<phoneid, start_pos>
+      int last_phone = -1;
+      for (int i = 0; i < length; ++i){
+        int cur_phone = trans_model.TransitionStateToPhone(vec_time[i]);
+        if(cur_phone != last_phone){
+          vec_seg.push_back(std::make_pair(cur_phone, i));
+          last_phone = cur_phone;
         }
-        //pair <phone : average_score>  std::vector<std::pair<int32, double>>
-        GOPres results;
-        //for(int n = 0, start_pos = 1, last = vec_time[0], current = vec_time[0]; n < length; n++ ){
-        for(int n = 0, start_pos = 0, last = vec_time[0], current = vec_time[0]; n < length; n++ ){
-          current = vec_time[n];
-          if (last == current){ //still in the same phone
-            ; //do nothing
-          }
-          else {
-            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n-start_pos).Sum()/(n-start_pos)));
-            start_pos = n; // Kaldi vector index starts from 0
-            //start_pos = n+1; // Kaldi vector index starts from 1
-          }
-          last = current;
-          if (n == length -1){ //push everything at the last frame
-            results.push_back(std::make_pair(last, gop_per_frame.Range(start_pos, n-start_pos).Sum()/(n-start_pos)));
-          }
-        }
-        //write out
-        gop_writer.Write(uttid, results);
+        vec_pdf[i] = trans_model.TransitionIdToPdfArray()[vec_time[i]];
+      }
+
+      //Step 2: compute the likelihood matrix
+      const CuMatrix<BaseFloat> &feats = feature_reader.Value();
+      int32 output_frames = feats.NumRows(), output_dim = am_nnet.GetNnet().OutputDim();
+      //We always pad the input for GOP calculation
+      //if (!pad_input)
+      //  output_frames -= nnet.LeftContext() + nnet.RightContext();
+
+      if ( output_frames != length){
+        KALDI_ERR << "decoding length is not the same as alignment length, interrupted: " << output_frames << " vs " <<length;
+      }
+      if (output_frames <= 0) {
+        KALDI_WARN << "Skipping utterance " << uttid << " because output "
+                   << "would be empty.";
+        continue;
+      }
+
+      CuMatrix<BaseFloat> like_mat(output_frames, output_dim);
+      //We always pad the input for GOP calculation
+      NnetComputation(am_nnet.GetNnet(), feats, true, &like_mat);
+      CuVector<float> prior_vec(am_nnet.Priors());
+      CuMatrix<float> prior_mat(output_frames, output_dim);
+      prior_mat.CopyRowsFromVec(prior_vec);
+      like_mat.DivElements(prior_mat);
+      like_mat.ApplyLog();
+      like_mat.Scale(-1); //negate it so set zero will be the smallest value, but we need to compute GOP with (Denom - Numerator) and it will be always less than zero 
+
+      //Step 3: compute the GOP
+      //numerator
+      CuMatrix<float> numerator_mask(output_frames, output_dim);
+      CuMatrix<float> numerator_mat(like_mat);
+      for(int i=0; i<output_frames; i++){
+        numerator_mask.Row(i).SetZero();
+        numerator_mask.Row(i)(vec_pdf[i]) = 1;
+      }
+      numerator_mat.MulElements(numerator_mask);
+
+      //CuVector<float> one_vec(output_dim);
+      //one_vec.Set(1);
+      CuVector<float> numerator_vec(output_dim);
+      numerator_vec.SetZero();
+      //numerator_vec.AddMatVec(1, numerator_mat, kNoTrans, one_vec, 1);
+      numerator_vec.AddRowSumMat(1, numerator_mat);
+
+      //denominator
+      CuVector<float> denom_vec(output_dim);
+      for (int i=0; i < output_dim; i++ ){
+        denom_vec(i) = like_mat.Row(i).Min();
+      }
+    
+      //GOP     
+      GOPres results;
+      for(int i = 0, last_pos = 0; i < output_frames; i++){
+        int32 p_id = vec_seg[i].first;
+        int32 len_seg = vec_seg[i].second - last_pos ;
+        denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
+        double gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
+        results.push_back(std::make_pair(p_id, gop_score));
+      }
+      //write out
+      gop_writer.Write(uttid, results);
     }
 
     }catch(const std::exception &e) {
