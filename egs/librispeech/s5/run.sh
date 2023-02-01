@@ -10,7 +10,7 @@ data=/localhome/stipendiater/xinweic/data/libri
 data_url=www.openslr.org/resources/12
 lm_url=www.openslr.org/resources/11
 mfccdir=mfcc
-stage=13
+stage=14
 
 . ./cmd.sh
 . ./path.sh
@@ -156,161 +156,14 @@ if [ $stage -le 13 ]; then
                       data/train_clean_100 data/lang_nosp  exp/mono_all_data
 
 fi
+
+
+if [ $stage -le 14 ]; then
+  # This nnet2 training script is deprecated.
+  local/nnet2/run_gop_nn.sh
+fi
+
 echo "done"
 exit 0
 
-if [ $stage -le 13 ]; then
-  # Now we compute the pronunciation and silence probabilities from training data,
-  # and re-create the lang directory.
-  steps/get_prons.sh --cmd "$train_cmd" \
-                     data/train_clean_100 data/lang_nosp exp/tri4b
-  utils/dict_dir_add_pronprobs.sh --max-normalize true \
-                                  data/local/dict_nosp \
-                                  exp/tri4b/pron_counts_nowb.txt exp/tri4b/sil_counts_nowb.txt \
-                                  exp/tri4b/pron_bigram_counts_nowb.txt data/local/dict
 
-  utils/prepare_lang.sh data/local/dict \
-                        "<UNK>" data/local/lang_tmp data/lang
-  local/format_lms.sh --src-dir data/lang data/local/lm
-
-  utils/build_const_arpa_lm.sh \
-    data/local/lm/lm_tglarge.arpa.gz data/lang data/lang_test_tglarge
-  utils/build_const_arpa_lm.sh \
-    data/local/lm/lm_fglarge.arpa.gz data/lang data/lang_test_fglarge
-fi
-
-#if [ $stage -le 14 ] && false; then
-#  # This stage is for nnet2 training on 100 hours; we're commenting it out
-#  # as it's deprecated.
-#  # align train_clean_100 using the tri4b model
-#  steps/align_fmllr.sh --nj 30 --cmd "$train_cmd" \
-#    data/train_clean_100 data/lang exp/tri4b exp/tri4b_ali_clean_100
-
-#  # This nnet2 training script is deprecated.
-#  local/nnet2/run_5a_clean_100.sh
-#fi
-
-if [ $stage -le 15 ]; then
-  local/download_and_untar.sh $data $data_url train-clean-360
-
-  # now add the "clean-360" subset to the mix ...
-  local/data_prep.sh \
-    $data/LibriSpeech/train-clean-360 data/train_clean_360
-  steps/make_mfcc.sh --cmd "$train_cmd" --nj 40 data/train_clean_360 \
-                     exp/make_mfcc/train_clean_360 $mfccdir
-  steps/compute_cmvn_stats.sh \
-    data/train_clean_360 exp/make_mfcc/train_clean_360 $mfccdir
-
-  # ... and then combine the two sets into a 460 hour one
-  utils/combine_data.sh \
-    data/train_clean_460 data/train_clean_100 data/train_clean_360
-fi
-
-if [ $stage -le 16 ]; then
-  # align the new, combined set, using the tri4b model
-  steps/align_fmllr.sh --nj 40 --cmd "$train_cmd" \
-                       data/train_clean_460 data/lang exp/tri4b exp/tri4b_ali_clean_460
-
-  # create a larger SAT model, trained on the 460 hours of data.
-  steps/train_sat.sh  --cmd "$train_cmd" 5000 100000 \
-                      data/train_clean_460 data/lang exp/tri4b_ali_clean_460 exp/tri5b
-fi
-
-
-# The following command trains an nnet3 model on the 460 hour setup.  This
-# is deprecated now.
-## train a NN model on the 460 hour set
-#local/nnet2/run_6a_clean_460.sh
-
-if [ $stage -le 17 ]; then
-  # prepare the remaining 500 hours of data
-  local/download_and_untar.sh $data $data_url train-other-500
-
-  # prepare the 500 hour subset.
-  local/data_prep.sh \
-    $data/LibriSpeech/train-other-500 data/train_other_500
-  steps/make_mfcc.sh --cmd "$train_cmd" --nj 40 data/train_other_500 \
-                     exp/make_mfcc/train_other_500 $mfccdir
-  steps/compute_cmvn_stats.sh \
-    data/train_other_500 exp/make_mfcc/train_other_500 $mfccdir
-
-  # combine all the data
-  utils/combine_data.sh \
-    data/train_960 data/train_clean_460 data/train_other_500
-fi
-
-if [ $stage -le 18 ]; then
-  steps/align_fmllr.sh --nj 40 --cmd "$train_cmd" \
-                       data/train_960 data/lang exp/tri5b exp/tri5b_ali_960
-
-  # train a SAT model on the 960 hour mixed data.  Use the train_quick.sh script
-  # as it is faster.
-  steps/train_quick.sh --cmd "$train_cmd" \
-                       7000 150000 data/train_960 data/lang exp/tri5b_ali_960 exp/tri6b
-
-  # decode using the tri6b model
-  utils/mkgraph.sh data/lang_test_tgsmall \
-                   exp/tri6b exp/tri6b/graph_tgsmall
-  for test in test_clean test_other dev_clean dev_other; do
-      steps/decode_fmllr.sh --nj 20 --cmd "$decode_cmd" \
-                            exp/tri6b/graph_tgsmall data/$test exp/tri6b/decode_tgsmall_$test
-      steps/lmrescore.sh --cmd "$decode_cmd" data/lang_test_{tgsmall,tgmed} \
-                         data/$test exp/tri6b/decode_{tgsmall,tgmed}_$test
-      steps/lmrescore_const_arpa.sh \
-        --cmd "$decode_cmd" data/lang_test_{tgsmall,tglarge} \
-        data/$test exp/tri6b/decode_{tgsmall,tglarge}_$test
-      steps/lmrescore_const_arpa.sh \
-        --cmd "$decode_cmd" data/lang_test_{tgsmall,fglarge} \
-        data/$test exp/tri6b/decode_{tgsmall,fglarge}_$test
-  done
-fi
-
-
-if [ $stage -le 19 ]; then
-  # this does some data-cleaning. The cleaned data should be useful when we add
-  # the neural net and chain systems.  (although actually it was pretty clean already.)
-  local/run_cleanup_segmentation.sh
-fi
-
-# steps/cleanup/debug_lexicon.sh --remove-stress true  --nj 200 --cmd "$train_cmd" data/train_clean_100 \
-#    data/lang exp/tri6b data/local/dict/lexicon.txt exp/debug_lexicon_100h
-
-# #Perform rescoring of tri6b be means of faster-rnnlm
-# #Attention: with default settings requires 4 GB of memory per rescoring job, so commenting this out by default
-# wait && local/run_rnnlm.sh \
-#     --rnnlm-ver "faster-rnnlm" \
-#     --rnnlm-options "-hidden 150 -direct 1000 -direct-order 5" \
-#     --rnnlm-tag "h150-me5-1000" $data data/local/lm
-
-# #Perform rescoring of tri6b be means of faster-rnnlm using Noise contrastive estimation
-# #Note, that could be extremely slow without CUDA
-# #We use smaller direct layer size so that it could be stored in GPU memory (~2Gb)
-# #Suprisingly, bottleneck here is validation rather then learning
-# #Therefore you can use smaller validation dataset to speed up training
-# wait && local/run_rnnlm.sh \
-#     --rnnlm-ver "faster-rnnlm" \
-#     --rnnlm-options "-hidden 150 -direct 400 -direct-order 3 --nce 20" \
-#     --rnnlm-tag "h150-me3-400-nce20" $data data/local/lm
-
-
-if [ $stage -le 20 ]; then
-  # train and test nnet3 tdnn models on the entire data with data-cleaning.
-  local/chain/run_tdnn.sh # set "--stage 11" if you have already run local/nnet3/run_tdnn.sh
-fi
-
-# The nnet3 TDNN recipe:
-# local/nnet3/run_tdnn.sh # set "--stage 11" if you have already run local/chain/run_tdnn.sh
-
-# # train models on cleaned-up data
-# # we've found that this isn't helpful-- see the comments in local/run_data_cleaning.sh
-# local/run_data_cleaning.sh
-
-# # The following is the current online-nnet2 recipe, with "multi-splice".
-# local/online/run_nnet2_ms.sh
-
-# # The following is the discriminative-training continuation of the above.
-# local/online/run_nnet2_ms_disc.sh
-
-# ## The following is an older version of the online-nnet2 recipe, without "multi-splice".  It's faster
-# ## to train but slightly worse.
-# # local/online/run_nnet2.sh

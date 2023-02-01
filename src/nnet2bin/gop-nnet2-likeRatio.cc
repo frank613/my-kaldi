@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
 
     const char *usage =
         "calculating the GOP based on the given alignment(raw alignment with transition ids) and neural network posteriors (frame-wise likelihood ratio)\n"
-        "Usgae: gop-likeRatio NNModel-in TransitionModel-in feats-rspecifier ali-rspecifier gop-wspecifier";
+        "Usgae: gop-nnet2-likeRatio NNModel-in feats-rspecifier ali-rspecifier gop-wspecifier";
 
     ParseOptions po(usage);
     //BaseFloat lm2acoustic_scale = 0.0;
@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
         KALDI_WARN << "the utt " << uttid << " can not be found in the alignment, skipped";
         continue;   
       }
-      KALDI_LOG << "processing" << uttid;
+      KALDI_LOG << "processing " << uttid;
 
       //Step 1: get the tran-id sequence and segmentation vector from alignment
       const std::vector<int32> &vec_time = ali_reader.Value(uttid);
@@ -171,7 +171,7 @@ int main(int argc, char *argv[]) {
       std::vector<std::pair<int32, int32>> vec_seg; //pair<phoneid, start_pos>
       int last_phone = -1;
       for (int i = 0; i < length; ++i){
-        int cur_phone = trans_model.TransitionStateToPhone(vec_time[i]);
+        int cur_phone = trans_model.TransitionIdToPhone(vec_time[i]);
         if(cur_phone != last_phone){
           vec_seg.push_back(std::make_pair(cur_phone, i));
           last_phone = cur_phone;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
       CuMatrix<float> prior_mat(output_frames, output_dim);
       prior_mat.CopyRowsFromVec(prior_vec);
       like_mat.DivElements(prior_mat);
-      like_mat.ApplyLog();
+      like_mat.LogSoftMaxPerRow(like_mat); //renormalize before applying log, to ensure the same sign
       like_mat.Scale(-1); //negate it so set zero will be the smallest value, but we need to compute GOP with (Denom - Numerator) and it will be always less than zero 
 
       //Step 3: compute the GOP
@@ -217,24 +217,37 @@ int main(int argc, char *argv[]) {
 
       //CuVector<float> one_vec(output_dim);
       //one_vec.Set(1);
-      CuVector<float> numerator_vec(output_dim);
+      CuVector<float> numerator_vec(output_frames);
       numerator_vec.SetZero();
       //numerator_vec.AddMatVec(1, numerator_mat, kNoTrans, one_vec, 1);
-      numerator_vec.AddRowSumMat(1, numerator_mat);
+      numerator_vec.AddColSumMat(1, numerator_mat);
 
       //denominator
-      CuVector<float> denom_vec(output_dim);
-      for (int i=0; i < output_dim; i++ ){
+      CuVector<float> denom_vec(output_frames);
+      for (int i=0; i < output_frames; i++ ){
         denom_vec(i) = like_mat.Row(i).Min();
       }
     
       //GOP     
       GOPres results;
-      for(int i = 0, last_pos = 0; i < output_frames; i++){
+      for(int i = 0, last_pos = 0; i < vec_seg.size(); i++){
         int32 p_id = vec_seg[i].first;
-        int32 len_seg = vec_seg[i].second - last_pos ;
-        denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
-        double gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
+	int32 len_seg = -1;
+	double gop_score = 0;
+	if(i ==  vec_seg.size() - 1){
+        	len_seg = output_frames - vec_seg[i].second;
+		//KALDI_LOG << last_pos << " " << len_seg;
+		denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
+        	gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
+	}
+	else{
+        	len_seg = vec_seg[i+1].second - last_pos;
+		//KALDI_LOG << last_pos << " " << len_seg;
+		denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
+        	gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
+		last_pos = vec_seg[i+1].second;
+	}	
+	//KALDI_LOG << " " << ;
         results.push_back(std::make_pair(p_id, gop_score));
       }
       //write out

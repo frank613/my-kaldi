@@ -4,7 +4,7 @@
 all:
 	-rm -f cuda-compiled
 
-
+#DEBUG_LEVEL=2
 EXTRA_CXXFLAGS = -Wno-sign-compare
 include ../kaldi.mk
 
@@ -29,7 +29,8 @@ BINFILES = nnet-am-info nnet-init \
    nnet-modify-learning-rates nnet-normalize-stddev  \
    nnet-get-weighted-egs nnet-adjust-priors \
    nnet-replace-last-layers nnet-am-switch-preconditioning \
-   nnet1-to-raw-nnet raw-nnet-copy nnet-relabel-egs nnet-am-reinitialize
+   nnet1-to-raw-nnet raw-nnet-copy nnet-relabel-egs nnet-am-reinitialize \
+   gop-nnet2-likeRatio 
 
 OBJFILES =
 
