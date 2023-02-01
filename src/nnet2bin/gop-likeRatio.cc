@@ -130,16 +130,15 @@ int main(int argc, char *argv[]) {
 
     po.Read(argc, argv);
 
-    if (po.NumArgs() != 5) {
+    if (po.NumArgs() != 4) {
       po.PrintUsage();
       exit(1);
     }
 
     std::string nnet_rxfilename = po.GetArg(1),
-        hmm_model_rxfilename = po.GetArg(2),
-        feats_rspecifier = po.GetArg(3), 
-        ali_rspecifier = po.GetArg(4), //read the tran-id alignment file for grouping the gop scores and getting the canonical pdf-id sequence 
-        gop_wspecifier= po.GetArg(5);
+        feats_rspecifier = po.GetArg(2), 
+        ali_rspecifier = po.GetArg(3), //read the tran-id alignment file for grouping the gop scores and getting the canonical pdf-id sequence 
+        gop_wspecifier= po.GetArg(4);
 
   
     TransitionModel trans_model;
