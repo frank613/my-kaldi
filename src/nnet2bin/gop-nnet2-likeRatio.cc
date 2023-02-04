@@ -134,6 +134,9 @@ int main(int argc, char *argv[]) {
       po.PrintUsage();
       exit(1);
     }
+    #if HAVE_CUDA==1
+    CuDevice::Instantiate().SelectGpuId("optional");
+    #endif
 
     std::string nnet_rxfilename = po.GetArg(1),
         feats_rspecifier = po.GetArg(2), 
@@ -202,8 +205,9 @@ int main(int argc, char *argv[]) {
       CuMatrix<float> prior_mat(output_frames, output_dim);
       prior_mat.CopyRowsFromVec(prior_vec);
       like_mat.DivElements(prior_mat);
-      like_mat.LogSoftMaxPerRow(like_mat); //renormalize before applying log, to ensure the same sign
-      like_mat.Scale(-1); //negate it so set zero will be the smallest value, but we need to compute GOP with (Denom - Numerator) and it will be always less than zero 
+      like_mat.ApplyLog();
+      //like_mat.LogSoftMaxPerRow(like_mat); //renormalize before applying log, to ensure the same sign
+      like_mat.Scale(-1); //negate it so we need to compute GOP with (Denom - Numerator) and it will be always less than zero 
 
       //Step 3: compute the GOP
       //numerator
@@ -232,22 +236,20 @@ int main(int argc, char *argv[]) {
       GOPres results;
       for(int i = 0, last_pos = 0; i < vec_seg.size(); i++){
         int32 p_id = vec_seg[i].first;
-	int32 len_seg = -1;
-	double gop_score = 0;
-	if(i ==  vec_seg.size() - 1){
+        int32 len_seg = -1;
+        double gop_score = 0;
+        if(i ==  vec_seg.size() - 1){
         	len_seg = output_frames - vec_seg[i].second;
-		//KALDI_LOG << last_pos << " " << len_seg;
-		denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
+		      denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
         	gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
-	}
-	else{
-        	len_seg = vec_seg[i+1].second - last_pos;
-		//KALDI_LOG << last_pos << " " << len_seg;
-		denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
-        	gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
-		last_pos = vec_seg[i+1].second;
-	}	
-	//KALDI_LOG << " " << ;
+        }
+        else{
+          len_seg = vec_seg[i+1].second - last_pos;
+          denom_vec.Range(last_pos, len_seg).AddVec(-1, numerator_vec.Range(last_pos, len_seg));
+          gop_score = denom_vec.Range(last_pos, len_seg).Sum() / len_seg;
+          last_pos = vec_seg[i+1].second;
+        }	
+	    //KALDI_LOG << " " << ;
         results.push_back(std::make_pair(p_id, gop_score));
       }
       //write out

@@ -10,7 +10,7 @@ data=/localhome/stipendiater/xinweic/data/libri
 data_url=www.openslr.org/resources/12
 lm_url=www.openslr.org/resources/11
 mfccdir=mfcc
-stage=14
+stage=16
 
 . ./cmd.sh
 . ./path.sh
@@ -159,8 +159,18 @@ fi
 
 
 if [ $stage -le 14 ]; then
-  # This nnet2 training script is deprecated.
   local/nnet2/run_gop_nn.sh
+fi
+
+#train the triphone models
+if [ $stage -le 15 ]; then
+  steps/train_deltas.sh --boost-silence 1.25 --cmd "$train_cmd" \
+                        2000 10000 data/train_clean_100 data/lang_nosp exp/mono_all_data exp/tri_all_data
+fi
+
+
+if [ $stage -le 16 ]; then
+  local/nnet2/run_gop_nn_tri.sh
 fi
 
 echo "done"

@@ -31,8 +31,17 @@ mkdir -p $workdir/log
 feats="ark,s,cs:apply-cmvn $cmvn_opts --utt2spk=ark:$datadir/utt2spk scp:$datadir/cmvn.scp scp:$datadir/feats.scp ark:- |"
 
 if [ $stage -le 0 ]; then
+  if [ ! -d $workdir/ali.all.txt ]; then
+  	echo "$0: converting alignments from $alidir to use current tree"
+  	$cmd $workdir/log/convert.log \
+    	convert-ali $alidir/final.mdl $moddir/final.mdl $moddir/tree \
+     	"ark,t:$alidir/ali.all.txt" "ark,t:$workdir/ali.all.txt" || exit 1;
+  fi
+fi
+
+if [ $stage -le 1 ]; then
    $cmd  $workdir/log/gop.log \
-   gop-nnet2-likeRatio $moddir/final.mdl "$feats" "ark,t:$alidir/ali.all.txt" "ark,t:$workdir/gop.score.txt"
+   gop-nnet2-likeRatio $moddir/final.mdl "$feats" "ark,t:$workdir/ali.all.txt" "ark,t:$workdir/gop.score.txt"
 
    cat $workdir/gop.* > $workdir/gop.score.all
    cat $workdir/gop.score.all  | utils/int2sym.pl -f 2 $alidir/phones.txt > $workdir/gop.score.all.symbol
