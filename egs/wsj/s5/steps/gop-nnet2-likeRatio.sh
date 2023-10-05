@@ -14,7 +14,7 @@ echo "$0 $@"  # Print the command line for logging
 if [ $# != 4 ]; then
    echo "Usage: steps/gop-nnet2-likeRatio.sh [options] <model-dir> <ali-dir> <data-dir> <work-dir>"
    echo ""
-   echo "This script computes the GOP using nnet2 DNN"
+   echo "This script computes the GOP using nnet2 DNN, and convert the alignment with the tree is different"
    echo ""
    exit 1;
 fi
@@ -41,6 +41,7 @@ fi
 
 if [ $stage -le 1 ]; then
    $cmd  $workdir/log/gop.log \
+   #gdb --args gop-nnet2-likeRatio $moddir/final.mdl "$feats" "ark,t:$workdir/ali.all.txt" "ark,t:$workdir/gop.score.txt"
    gop-nnet2-likeRatio $moddir/final.mdl "$feats" "ark,t:$workdir/ali.all.txt" "ark,t:$workdir/gop.score.txt"
 
    cat $workdir/gop.* > $workdir/gop.score.all
