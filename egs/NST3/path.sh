@@ -1,0 +1,1 @@
+/localhome/ansatte/torbjorn/kaldi-a7/egs/NST3/path.sh

@@ -1,0 +1,1 @@
+python ./local/prepare_data_from_tsv.py /talebase/data/speech_raw/teflon_no/assessments.csv /localhome/ansatte/torbjorn/kaldi-a7/egs/NST3/data/lang_nosp/phones/align_lexicon.txt ./local/phoneme_ano.maps ./data/test-gop
