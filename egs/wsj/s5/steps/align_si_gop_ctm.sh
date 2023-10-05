@@ -104,6 +104,7 @@ fi
 #align-to-phone
   $cmd JOB=1:$nj $dir/log/align_to_phone.JOB.log \
   ali-to-phones --per-frame "$mdl" "ark:gunzip -c $dir/ali.JOB.gz|" "ark,t:$dir/ali.phone.JOB.txt"
+  [ -f $dir/ali.phonemes.all.txt ] && rm $dir/ali.phonemes.all.txt
   cat $dir/ali.phone.*.txt | utils/int2sym.pl -f 2- $lang/phones.txt >> "$dir/ali.phonemes.all.txt" || exit 1;
 
 #align-to-phone-ctm
